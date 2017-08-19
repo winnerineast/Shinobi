@@ -2,16 +2,6 @@
 // Shinobi - Motion Plugin
 // Copyright (C) 2016-2025 Moe Alam, moeiscool
 //
-// This program is free software; you can redistribute it and/or
-// modify it under the terms of the GNU General Public License
-// as published by the Free Software Foundation; either version 2
-// of the License, or (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU General Public License for more details.
-//
 // # Donate
 //
 // If you like what I am doing here and want me to continue please consider donating :)
@@ -24,6 +14,11 @@ var fs = require('fs');
 var moment = require('moment');
 var Canvas = require('canvas');
 var config=require('./conf.json');
+if(process.argv[2]&&process.argv[3]){
+    config.host=process.argv[2]
+    config.port=process.argv[3]
+    config.key=process.argv[4]
+}
 if(config.systemLog===undefined){config.systemLog=true}
 s={
     group:{},
@@ -134,7 +129,7 @@ s.checkAreas=function(d){
         if(!d.mon.cords){d.mon.cords={}}
         s.group[d.ke][d.id].cords=Object.values(d.mon.cords);
     }
-    if(d.mon.detector_frame==='1'&&!d.mon.cords.frame){
+    if(d.mon.detector_frame==='1'){
         d.mon.cords.frame={name:'frame',s:d.mon.detector_sensitivity,points:[[0,0],[0,d.image.height],[d.image.width,d.image.height],[d.image.width,0]]};
         s.group[d.ke][d.id].cords.push(d.mon.cords.frame);
     }
@@ -148,7 +143,7 @@ s.checkAreas=function(d){
 io = require('socket.io-client')('ws://'+config.host+':'+config.port);//connect to master
 s.cx=function(x){x.pluginKey=config.key;x.plug=config.plug;return io.emit('ocv',x)}
 io.on('connect',function(d){
-    s.cx({f:'init',plug:config.plug});
+    s.cx({f:'init',plug:config.plug,notice:config.notice});
 })
 io.on('disconnect',function(d){
     io.connect();
@@ -163,6 +158,7 @@ io.on('f',function(d){
                 s.group[d.ke][d.id].blendRegionContext={}
                 s.group[d.ke][d.id].lastRegionImageData={}
                 delete(s.group[d.ke][d.id].cords)
+                delete(s.group[d.ke][d.id].buffer)
             }
         break;
         case'frame':
@@ -199,10 +195,16 @@ io.on('f',function(d){
                         },d.mon.detector_lock_timeout)
                     }
                     s.group[d.ke][d.id].buffer=Buffer.concat(s.group[d.ke][d.id].buffer);
-                    try{
-                        d.mon.cords=JSON.parse(d.mon.cords)
-                    }catch(err){
-                        
+                    if((typeof d.mon.cords ==='string')&&d.mon.cords.trim()===''){
+                        d.mon.cords=[]
+                    }else{
+                        try{
+                            d.mon.cords=JSON.parse(d.mon.cords)
+                        }catch(err){
+                        }
+                    }
+                    if(d.mon.detector_frame_save==="1"){
+                       d.base64=s.group[d.ke][d.id].buffer.toString('base64')
                     }
                     s.group[d.ke][d.id].cords=Object.values(d.mon.cords);
                     d.mon.cords=d.mon.cords;
